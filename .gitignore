@@ -30,3 +30,12 @@
 *.exe
 *.out
 *.app
+
+#visual studio
+*.VC.db
+*.user
+*.pdb
+*.idb
+*.suo
+*.VC.opendb
+**/x64/
