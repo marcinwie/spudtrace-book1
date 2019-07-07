@@ -39,3 +39,4 @@
 *.suo
 *.VC.opendb
 **/x64/
+.vs
