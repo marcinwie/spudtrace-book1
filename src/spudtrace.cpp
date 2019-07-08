@@ -104,6 +104,8 @@ struct job_params
 
 void thread_process(const job_params& params, vector3* output)
 {
+	auto start = std::chrono::high_resolution_clock::now();
+
 	float nx = params._width * 1.0f;
 	float ny = params._height * 1.0f;
 	float ns = params._samples * 1.0f;
@@ -127,6 +129,10 @@ void thread_process(const job_params& params, vector3* output)
 			output++;
 		}
 	}
+
+	auto finish = std::chrono::high_resolution_clock::now();
+	std::cout << "Finished image processing in  " << std::chrono::duration_cast<std::chrono::seconds>(finish - start).count() << " second(s)\n";
+
 }
 
 bool write_ppm(const char* filename, int32_t width, int32_t height, const std::vector<vector3>& data)
@@ -135,6 +141,8 @@ bool write_ppm(const char* filename, int32_t width, int32_t height, const std::v
 	stream.open(filename);
 	if (!stream.is_open())
 		return false; 
+
+	auto start = std::chrono::high_resolution_clock::now();
 
 	stream << "P3\n" << width << " " << height << "\n255\n";
 	for (auto itr = data.begin(); itr != data.end(); itr++)
@@ -149,13 +157,17 @@ bool write_ppm(const char* filename, int32_t width, int32_t height, const std::v
 	}
 
 	stream.close();
+
+	auto finish = std::chrono::high_resolution_clock::now();
+	std::cout << "Finished writing file in  " << std::chrono::duration_cast<std::chrono::seconds>(finish - start).count() << " second(s)\n";
+
 	return true;
 }
 
 int main()
 {
-	const int32_t width = 192;
-	const int32_t height = 108;
+	const int32_t width = 1920;
+	const int32_t height = 1080;
 	const int32_t samples = 10;
 
 	// keep 2 to 1 aspect ratio to keep the rest of the math match the article
