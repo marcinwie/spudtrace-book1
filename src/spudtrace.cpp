@@ -7,6 +7,7 @@
 #include "camera.h"
 
 #include <iostream>
+#include <fstream>
 #include <thread>
 
 vector3 color(const ray& r, const Object* obj, int depth) {
@@ -128,6 +129,29 @@ void thread_process(const job_params& params, vector3* output)
 	}
 }
 
+bool write_ppm(const char* filename, int32_t width, int32_t height, const std::vector<vector3>& data)
+{
+	std::ofstream stream;
+	stream.open(filename);
+	if (!stream.is_open())
+		return false; 
+
+	stream << "P3\n" << width << " " << height << "\n255\n";
+	for (auto itr = data.begin(); itr != data.end(); itr++)
+	{
+		auto& col = *itr;
+
+		int ir = (int)(255.99 * col.r());
+		int ig = (int)(255.99 * col.g());
+		int ib = (int)(255.99 * col.b());
+
+		stream << ir << " " << ig << " " << ib << "\n";
+	}
+
+	stream.close();
+	return true;
+}
+
 int main()
 {
 	const int32_t width = 192;
@@ -140,9 +164,11 @@ int main()
 
 	World world; 
 
+	// load scene data to the world
 	sample_scene(world);
 	book_cover_scene(world);
 
+	// setup camera
 	vector3 lookFrom = vector3(13.0f, 2.0f, 3.0f);
 	vector3 lookAt = vector3(0.0f, 0.0f, 0.0f);
 	//float dist_to_focus = (lookFrom - lookAt).length();
@@ -152,24 +178,19 @@ int main()
 	Camera cam(lookFrom, lookAt, vector3::UP, vfov, nx/ny, aperture, dist_to_focus );
 
 
-	job_params params = { width, height, samples, &cam, &world };
+	// create output buffer and pre-allocate all memory so we are not doing bunch of allocations
 	std::vector<vector3> frame_buffer;
-	frame_buffer.resize(params._width * params._height);
+	frame_buffer.resize(width * height);
+	
+	// process all ray-tracing and generate a color buffer
+	job_params params = { width, height, samples, &cam, &world };
 	thread_process(params, frame_buffer.data());
+
+	// dump image data to ppm file
+	write_ppm("output.ppm", width, height, frame_buffer); 
 
 	//std::thread t(&thread_process, params);   // t starts running
 	//t.join();
 
-	std::cout << "P3\n" << nx << " " << ny << "\n255\n";
-	for (auto itr = frame_buffer.begin(); itr != frame_buffer.end(); itr++)
-	{
-		auto& col = *itr;
-
-		int ir = (int)(255.99 * col.r());
-		int ig = (int)(255.99 * col.g());
-		int ib = (int)(255.99 * col.b());
-
-		std::cout << ir << " " << ig << " " << ib << "\n";
-
-	}
+	
 }
