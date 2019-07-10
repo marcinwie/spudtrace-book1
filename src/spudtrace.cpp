@@ -85,54 +85,57 @@ void book_cover_scene(World& world) {
 	world._objects.push_back(std::make_unique<Sphere>(vector3(4.f, 1.f, 0.f), 1.f, new Metal(vector3(0.7f, 0.6f, 0.5f), 0.0f)));
 }
 
-struct point2d
-{
-	int32_t _x, _y;
-};
-
-struct job_params
+struct SceneInfo
 {
 	int32_t	_width; 
 	int32_t	_height;
 	int32_t	_samples; 
 	const Camera*	_camera; 
 	const World*	_world;
-
-	point2d _sy; 
-	point2d _sx; 
 };
 
-void thread_process(const job_params& params, vector3* output)
+
+struct JobInfo
 {
-	auto start = std::chrono::high_resolution_clock::now();
+	float _nx; 
+	float _ny;
+	float _ns;
+	int32_t _j; 
+	int32_t _i;
+	vector3* _output; 
+};
 
-	float nx = params._width * 1.0f;
-	float ny = params._height * 1.0f;
-	float ns = params._samples * 1.0f;
-
-	for (int32_t j = params._height - 1; j >= 0; j--)
+void process_ray(const SceneInfo& scene, JobInfo& job)
+{
+	vector3 col(0.f, 0.f, 0.f);
+	for (int s = 0; s < (int)scene._samples; s++)
 	{
-		for (int32_t i = 0; i < params._width; i++)
+		float u = (job._i + drand48()) / job._nx;
+		float v = (job._j + drand48()) / job._ny;
+		ray r = scene._camera->getRay(u, v);
+		vector3 p = r.point_at_parameter(2.0);
+		col += color(r, scene._world, 0);
+	}
+	col /= job._ns;
+	col = vector3(sqrt(col.x()), sqrt(col.y()), sqrt(col.z()));
+	*job._output = col;
+}
+
+void thread_process(const SceneInfo& scene, vector3* output)
+{
+	float nx = scene._width * 1.0f;
+	float ny = scene._height * 1.0f;
+	float ns = scene._samples * 1.0f;
+
+	for (int32_t j = scene._height - 1; j >= 0; j--)
+	{
+		for (int32_t i = 0; i < scene._width; i++)
 		{
-			vector3 col(0.f, 0.f, 0.f);
-			for (int s = 0; s < (int)params._samples; s++)
-			{
-				float u = (i + drand48()) / nx;
-				float v = (j + drand48()) / ny;
-				ray r = params._camera->getRay(u, v);
-				vector3 p = r.point_at_parameter(2.0);
-				col += color(r, params._world, 0);
-			}
-			col /= ns;
-			col = vector3(sqrt(col.x()), sqrt(col.y()), sqrt(col.z()));
-			*output = col;
+			JobInfo job = { nx, ny, ns, j, i, output }; 
+			process_ray(scene, job);
 			output++;
 		}
 	}
-
-	auto finish = std::chrono::high_resolution_clock::now();
-	std::cout << "Finished image processing in  " << std::chrono::duration_cast<std::chrono::seconds>(finish - start).count() << " second(s)\n";
-
 }
 
 bool write_ppm(const char* filename, int32_t width, int32_t height, const std::vector<vector3>& data)
@@ -189,14 +192,18 @@ int main()
 	float vfov = 20.0f;
 	Camera cam(lookFrom, lookAt, vector3::UP, vfov, nx/ny, aperture, dist_to_focus );
 
+	auto start = std::chrono::high_resolution_clock::now();
 
 	// create output buffer and pre-allocate all memory so we are not doing bunch of allocations
 	std::vector<vector3> frame_buffer;
 	frame_buffer.resize(width * height);
 	
 	// process all ray-tracing and generate a color buffer
-	job_params params = { width, height, samples, &cam, &world };
-	thread_process(params, frame_buffer.data());
+	SceneInfo scene = { width, height, samples, &cam, &world };
+	thread_process(scene, frame_buffer.data());
+
+	auto finish = std::chrono::high_resolution_clock::now();
+	std::cout << "Finished image processing in  " << std::chrono::duration_cast<std::chrono::seconds>(finish - start).count() << " second(s)\n";
 
 	// dump image data to ppm file
 	write_ppm("output.ppm", width, height, frame_buffer); 
