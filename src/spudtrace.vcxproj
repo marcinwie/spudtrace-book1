@@ -156,6 +156,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="camera.h" />
+    <ClInclude Include="safequeue.h" />
+    <ClInclude Include="threadqueue.h" />
     <ClInclude Include="materials.h" />
     <ClInclude Include="math_utils.h" />
     <ClInclude Include="objects.h" />

@@ -10,6 +10,8 @@
 #include <fstream>
 #include <thread>
 
+#include "threadqueue.h"
+
 vector3 color(const ray& r, const Object* obj, int depth) {
 	HitRecord rec;
 	if (obj->hit(r, 0.001f, FLT_MAX, rec)) {
@@ -105,24 +107,32 @@ struct JobInfo
 	vector3* _output; 
 };
 
-void process_ray(const SceneInfo& scene, JobInfo& job)
+void process_ray(const SceneInfo& scene, float nx, float ny, float ns, int32_t j, int32_t i, vector3* output)
 {
 	vector3 col(0.f, 0.f, 0.f);
 	for (int s = 0; s < (int)scene._samples; s++)
 	{
-		float u = (job._i + drand48()) / job._nx;
-		float v = (job._j + drand48()) / job._ny;
+		float u = (i + drand48()) / nx;
+		float v = (j + drand48()) / ny;
 		ray r = scene._camera->getRay(u, v);
 		vector3 p = r.point_at_parameter(2.0);
 		col += color(r, scene._world, 0);
 	}
-	col /= job._ns;
+	col /= ns;
 	col = vector3(sqrt(col.x()), sqrt(col.y()), sqrt(col.z()));
-	*job._output = col;
+
+	// store the result in our output buffer
+	*output = col;
 }
 
 void thread_process(const SceneInfo& scene, vector3* output)
 {
+	ThreadPool pool(8);
+	pool.init();
+
+	std::vector<std::future<void>> results; 
+	results.reserve(scene._height * scene._width); 
+
 	float nx = scene._width * 1.0f;
 	float ny = scene._height * 1.0f;
 	float ns = scene._samples * 1.0f;
@@ -131,11 +141,18 @@ void thread_process(const SceneInfo& scene, vector3* output)
 	{
 		for (int32_t i = 0; i < scene._width; i++)
 		{
-			JobInfo job = { nx, ny, ns, j, i, output }; 
-			process_ray(scene, job);
+			results.emplace_back(pool.submit(process_ray, std::ref(scene), nx, ny, ns, j, i, output));
+			//process_ray(scene, job);
 			output++;
 		}
 	}
+
+	for (auto& result : results) {
+		result.get();
+	}
+
+	pool.shutdown();
+
 }
 
 bool write_ppm(const char* filename, int32_t width, int32_t height, const std::vector<vector3>& data)
